@@ -46,7 +46,9 @@ class Filmwork(UUIDMixin, TimeStampedMixin):
 
     title = models.CharField(_('name'), max_length=255)
     description = models.TextField(_('description'), blank=True)
+    creation_date = models.DateField(_('creation_date'), blank=True)
     type = models.CharField(
+        _('type'),
         choices=Type.choices,
     )
     rating = models.FloatField(_('rating'), blank=True,
@@ -83,6 +85,9 @@ class Person(UUIDMixin, TimeStampedMixin):
         # название модели в интерфейсе
         verbose_name = 'Человек'
         verbose_name_plural = 'Человек'
+
+    def __str__(self):
+        return self.full_name
 
 
 class PersonFilmwork(UUIDMixin):
