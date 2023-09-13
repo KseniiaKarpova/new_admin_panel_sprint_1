@@ -1,12 +1,12 @@
 import sqlite3
 from contextlib import contextmanager
 import os
-from typing import List
 import psycopg2
 from psycopg2.extensions import connection as _connection
 from dotenv import load_dotenv
 from data import tables
-from dataclasses import fields, astuple
+from Logger import logger
+from data_execution import PostgresSaver, SQLiteExtractor
 
 
 load_dotenv()
@@ -20,64 +20,15 @@ def conn_context(db_path: str):
     conn.close()
 
 
-class SqlExecuter:
-    def __init__(self, connect):
-        self.connect = connect
-
-    def extract_data(self, table_name: str, datatype) -> List:
-        # получение  всех данных из таблицы
-        try:
-            # название колонок
-            colums_name = [field.name for field in fields(datatype)]
-
-            curs = self.connect.cursor()
-            curs.execute(f"SELECT {', '.join(colums_name)} FROM {table_name};")
-
-            # сохранение полученных записей в тип датакласса
-            result = []
-            for row in curs.fetchall():
-                if isinstance(row, tuple):
-                    result.append(datatype(*row))
-                else:
-                    result.append(datatype(**row))
-            return result
-
-        except Exception as e:
-            print(f'Не удалось получить данные для {datatype}. {e}')
-            return []
-
-
-class PostgresSaver(SqlExecuter):
-    """Обработка данных для Postgres """
-    def get_count_rows(self, table_name: str, colums_name: str) -> int:
-        return len(self.extract_data(table_name, colums_name))
-
-    def save(self, table_name: str, data):
-        # получение названий колонок
-        colums_name = [field.name for field in fields(data[0])]
-        col_count = ', '.join(['%s'] * len(colums_name))
-
-        # название колонок по котором могут быть конфликты при insert
-        conflict_name_colums = [name for name in colums_name if '_id' in name]
-        conflict_name_colums = 'id' if len(conflict_name_colums) == 0 \
-            else ', '.join(conflict_name_colums)
-
-        # загрузка данных в таблицу
-        curs = self.connect.cursor()
-        bind_values = [astuple(row) for row in data]
-        query = f'''INSERT INTO content.{table_name} ({", ".join(colums_name)}) 
-            VALUES ({col_count}) 
-            ON CONFLICT ({conflict_name_colums}) DO NOTHING;'''
-        curs.executemany(query, bind_values)
-
-
-class SQLiteExtractor(SqlExecuter):
-    """Обработка данных из sqlite3 """
+@contextmanager
+def conn_context_pg(settings: dict):
+    conn = psycopg2.connect(**settings)
+    yield conn
+    conn.commit()
 
 
 def load_from_sqlite(connection: sqlite3.Connection,
-                     pg_conn: _connection,
-                     n: int):
+                     pg_conn: _connection):
     """Основной метод загрузки данных из SQLite в Postgres"""
     try:
         # Обработчики запросов к каждой БД
@@ -87,25 +38,28 @@ def load_from_sqlite(connection: sqlite3.Connection,
         # по каждой таблице собираем данные
         for table in tables:
             # Получение данных из sqlite3
-            data = sqlite_extractor.extract_data(table, tables[table])
+            data = sqlite_extractor.extract_data(table,
+                                                 tables[table].get('type'))
             count_rows_sqlite = len(data)
 
             # Кол-во записей до вставки в Postgres
-            count_before = postgres_saver.get_count_rows(table, tables[table])
+            count_before = postgres_saver.get_count_rows(table,
+                                                         tables[table].get('type'))
 
-            # разделение на batch по n элементов
-            for i in range(0, count_rows_sqlite, n):
-                postgres_saver.save(table, data)
+            postgres_saver.save(table,
+                                data,
+                                tables[table].get('conflict_name_colums'))
 
-            count_after = postgres_saver.get_count_rows(table, tables[table])
+            count_after = postgres_saver.get_count_rows(table,
+                                                        tables[table].get('type'))
 
             if count_after - count_before != count_rows_sqlite:
-                print('Данные потерялись или были дубли')
+                logger.info('Данные потерялись или были дубли')
             else:
-                print('Данные успешно загружены')
+                logger.info('Данные успешно загружены')
 
     except Exception as e:
-        print(e)
+        logger.exception(e)
 
 
 if __name__ == '__main__':
@@ -121,13 +75,11 @@ if __name__ == '__main__':
         'options': '-c search_path=content',
     }
 
-    # n - Кол-во элементов в одном батче
-    n = 100
-
     # Создание соединений с Базами Данных
     try:
         with (conn_context(db_path) as sqlite_conn,
-              psycopg2.connect(**dsn) as pg_conn):
-            load_from_sqlite(sqlite_conn, pg_conn, n)
+              conn_context_pg(dsn) as pg_conn):
+            load_from_sqlite(sqlite_conn, pg_conn)
+
     except Exception as e:
-        print(f"Не удалось подключиться к базе данных.\n{e}")
+        logger.exception(f"Не удалось подключиться к базе данных.\n{e}")
