@@ -49,13 +49,15 @@ CREATE TABLE IF NOT EXISTS content.person_film_work (
     film_work_id uuid NOT NULL,
     person_id uuid NOT NULL,
     role TEXT,
-    created timestamp with time zone
+    created timestamp with time zone,
+    FOREIGN KEY (film_work_id) REFERENCES content.film_work (id) ON DELETE CASCADE,
+    FOREIGN KEY (person_id) REFERENCES content.person (id) ON DELETE CASCADE
 );
 
 
 /* Создание композитный индекса film_work_person_idx так,
     чтобы нельзя было добавить одного актёра несколько раз к одному фильму. */
-CREATE UNIQUE INDEX IF NOT EXISTS film_work_person_idx ON content.person_film_work (film_work_id, person_id);
+CREATE UNIQUE INDEX IF NOT EXISTS film_work_person_idx ON content.person_film_work (film_work_id, person_id, role);
 
 
 /* Создание таблицы genre_film_work в схеме content */
@@ -63,7 +65,9 @@ CREATE TABLE IF NOT EXISTS content.genre_film_work (
     id uuid PRIMARY KEY,
     genre_id uuid NOT NULL,
     film_work_id uuid NOT NULL,
-    created timestamp with time zone
+    created timestamp with time zone,
+    FOREIGN KEY (film_work_id) REFERENCES content.film_work (id) ON DELETE CASCADE,
+    FOREIGN KEY (genre_id) REFERENCES content.genre (id) ON DELETE CASCADE
 );
 
 /* Создание композитный индекса film_work_genre_idx так,
