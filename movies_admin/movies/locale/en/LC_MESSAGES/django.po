@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-09-12 12:22+0000\n"
+"POT-Creation-Date: 2023-09-13 13:35+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1268,3 +1268,19 @@ msgstr "Рейтинг"
 #: movies/models.py:81
 msgid "full_name"
 msgstr "ФИО"
+
+#: movies/models.py:96
+msgid "режисер"
+msgstr ""
+
+#: movies/models.py:97
+msgid "сценарист"
+msgstr ""
+
+#: movies/models.py:98
+msgid "актер"
+msgstr ""
+
+#: movies/models.py:103
+msgid "role"
+msgstr "роль"
