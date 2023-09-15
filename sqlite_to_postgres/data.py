@@ -43,11 +43,11 @@ class Person_film_work:
 tables = {"genre": {'type': Genre,
                     'conflict_name_colums': ['id']},
 
-          "film_work": {'type': FilmWork,
-                        'conflict_name_colums': ['id']},
-
           "person": {'type': Person,
                      'conflict_name_colums': ['id']},
+
+          "film_work": {'type': FilmWork,
+                        'conflict_name_colums': ['id']},
 
           "genre_film_work": {'type': Genre_film_work,
                               'conflict_name_colums': ['film_work_id',

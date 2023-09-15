@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from data import tables
 from Logger import logger
 from data_execution import PostgresSaver, SQLiteExtractor
-
+import gc
 
 load_dotenv()
 
@@ -28,7 +28,8 @@ def conn_context_pg(settings: dict):
 
 
 def load_from_sqlite(connection: sqlite3.Connection,
-                     pg_conn: _connection):
+                     pg_conn: _connection,
+                     n=100):
     """Основной метод загрузки данных из SQLite в Postgres"""
     try:
         # Обработчики запросов к каждой БД
@@ -38,23 +39,30 @@ def load_from_sqlite(connection: sqlite3.Connection,
         # по каждой таблице собираем данные
         for table in tables:
             # Получение данных из sqlite3
-            data = sqlite_extractor.extract_data(table,
-                                                 tables[table].get('type'))
-            count_rows_sqlite = len(data)
+            count_rows_sqlite = sqlite_extractor.count_rows(table)
 
             # Кол-во записей до вставки в Postgres
-            count_before = postgres_saver.get_count_rows(table,
-                                                         tables[table].get('type'))
+            count_before = postgres_saver.count_rows(table)
 
-            postgres_saver.save(table,
-                                data,
-                                tables[table].get('conflict_name_colums'))
+            #выгрузка данных частями на основе UUID (послений смивол)
+            for i in 'abcdefghijklmnopqrstuvwxyz0123456789':
+                data = sqlite_extractor.extract_data(table,
+                                                     tables[table].get('type'),
+                                                     i,
+                                                     n)
+                count_part=len(data)
+                if count_part > 0:
+                    for i in range(0, count_part, n):
+                        postgres_saver.save(table,
+                                            data[i:i+n],
+                                            tables[table].get('conflict_name_colums'))
 
-            count_after = postgres_saver.get_count_rows(table,
-                                                        tables[table].get('type'))
+                #освободить оперативку
+                gc.collect()
+            count_after = postgres_saver.count_rows(table)
 
             if count_after - count_before != count_rows_sqlite:
-                logger.info('Данные потерялись или были дубли')
+                logger.info(f'При загрузке в {table}   данные потерялись или были дубли')
             else:
                 logger.info('Данные успешно загружены')
 
